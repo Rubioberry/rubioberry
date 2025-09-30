@@ -18,11 +18,12 @@ body {
     height: 100%;
     object-fit: cover; /* Ensures the video covers the entire background */
     z-index: -1; /* Places the video behind other content */
+    opacity: 0.3; /* 30% opacity for the video */
 }
 
-/* No background image for index.html (video is used instead) */
+/* Background color for index.html (royal blue, video replaces image) */
 body.index {
-    background: none; /* Remove the background image */
+    background-color: #4169E1; /* Royal blue background */
 }
 
 /* Background image for staking.html */

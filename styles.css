@@ -9,37 +9,34 @@ body {
     color: black;
 }
 
-/* Styling for the background video in index.html */
+/* Styling for the background video in all pages */
 #background-video {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Ensures the video covers the entire background */
-    z-index: -1; /* Places the video behind other content */
-    opacity: 0.3; /* 30% opacity for the video */
+    object-fit: cover; /* Centers and scales video */
+    z-index: -1; /* Behind content */
+    opacity: 0.3; /* 30% opacity */
 }
 
-/* Background color for index.html (royal blue, video replaces image) */
+/* Background color for index.html */
 body.index {
-    background-color: #4169E1; /* Royal blue background */
+    background-color: #4169E1; /* Royal blue */
+    /* background-image: url('BACKGROUND-fallback.jpg'); */ /* Optional fallback */
 }
 
-/* Background image for staking.html */
+/* Background color for staking.html */
 body.staking {
-    background-image: url('https://raw.githubusercontent.com/GuTTedPoSSuM/staking-solution/main/staking-solution.png');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    background-color: #4169E1; /* Royal blue */
+    /* background-image: url('STAKING-fallback.jpg'); */ /* Optional fallback */
 }
 
-/* Background image for contact.html */
+/* Background color for contact.html */
 body.contact {
-    background-image: url('https://raw.githubusercontent.com/GuTTedPoSSuM/staking-solution/main/contact.png');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    background-color: #00CED1; /* Cyan blue */
+    /* background-image: url('CONTACT-fallback.jpg'); */ /* Optional fallback */
 }
 
 table {
@@ -59,13 +56,13 @@ td {
 
 td.middle {
     text-align: left;
-    background-color: rgba(255, 255, 255, 0.6); /* White background with 60% opacity */
-    padding: 20px; /* Adding some padding for better readability */
-    box-sizing: border-box; /* Ensures padding doesn't affect cell size */
+    background-color: rgba(255, 255, 255, 0.6); /* Semi-transparent white */
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 .middle div {
     margin-left: auto;
     margin-right: auto;
-    color: black; /* Ensure text stays black and readable */
+    color: black;
 }

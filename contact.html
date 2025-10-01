@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Us - GPSS</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="contact">
+    <!-- Background video -->
+    <video autoplay muted loop playsinline id="background-video" poster="CONTACT-fallback.jpg">
+        <source src="CONTACT.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+
+    <table>
+        <tr>
+            <td></td>
+            <td class="middle">
+                <div>
+                    <h1>Contact Us</h1>
+
+                    <form action="https://formspree.io/f/myzgnyzp" method="POST">
+                        <label for="email">Email:</label><br>
+                        <input type="email" id="email" name="_replyto" required><br><br>
+
+                        <label for="message">Message:</label><br>
+                        <textarea id="message" name="message" required></textarea><br><br>
+
+                        <input type="submit" value="Send">
+                    </form>
+
+                    <br><br>
+                    <button onclick="window.location.href='index.html'">Home</button>
+                </div>
+            </td>
+            <td></td>
+        </tr>
+    </table>
+
+    <script>
+        // Ensure video plays on iOS after user interaction
+        const video = document.getElementById('background-video');
+        video.play().catch(() => {
+            // Fallback: Try playing after user interaction
+            document.addEventListener('click', () => video.play(), { once: true });
+        });
+    </script>
+</body>
+</html>

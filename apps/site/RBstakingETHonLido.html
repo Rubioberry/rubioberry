@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubioberry → Zero-Fee ETH Staking on Mainnet</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+    <style>
+        :root { --green: #00ffb3; --pink: #ff006e; --yellow: #ffff00; }
+        body {font-family:'Inter',sans-serif;background:#0a0a1f;color:white;margin:0;overflow-x:hidden;}
+        #bg-video {position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-1;opacity:0.65;}
+        .container {max-width:900px;margin:0 auto;padding:20px;text-align:center;}
+        .success-bar {background:var(--green);color:#000;padding:16px;border-radius:12px;font-weight:bold;margin:15px 0;font-size:1.1em;}
+        .btn-main {background:linear-gradient(135deg,#00ffb3,#00d4a0);color:#000;font-weight:bold;padding:18px 40px;font-size:1.5em;border-radius:50px;border:none;cursor:pointer;box-shadow:0 10px 30px rgba(0,255,179,0.4);transition:all .2s;margin:15px;}
+        .btn-main:hover:not(:disabled) {transform:scale(1.06);}
+        .btn-main:disabled {opacity:0.6;cursor:not-allowed;transform:none;}
+        .btn-main.connected {background:#4CAF50;}
+        .btn-withdraw {background:var(--pink);color:white;}
+        .btn-cashout {background:linear-gradient(135deg,#9b59b6,#8e44ad);color:white;box-shadow:0 10px 30px rgba(155,89,182,0.4);}
+        .btn-cashout:hover {transform:scale(1.08) translateY(-3px);box-shadow:0 16px 40px rgba(155,89,182,0.6);}
+        .calc-box {background:rgba(255,255,255,0.06);border:2px solid rgba(0,255,179,0.3);border-radius:20px;padding:30px;margin:40px 0;}
+        .calc-input {width:100%;padding:20px;font-size:1.6em;text-align:center;border:2px solid var(--green);border-radius:16px;background:rgba(10,10,31,0.95);color:white;margin:15px 0;}
+        .calc-input::placeholder {color:#00ffb3;opacity:0.8;}
+        .result {font-size:2em;color:var(--green);font-weight:bold;margin:20px 0;}
+        .comparison {display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:25px;font-size:1.2em;}
+        @media (max-width:768px) {.comparison{grid-template-columns:1fr;}}
+        #status {padding:15px;margin:20px 0;font-weight:bold;border-radius:12px;min-height:20px;}
+        .loading {background:rgba(0,255,179,0.2);color:var(--green);}
+        .error {background:rgba(255,107,107,0.2);color:#ff6b6b;}
+        .contract-box {background:rgba(255,255,255,0.07);padding:20px;border-radius:16px;border:1px solid rgba(0,255,179,0.3);margin:40px 0;font-family:monospace;}
+        .nav-footer {margin:100px 0 60px 0;display:flex;gap:25px;justify-content:center;flex-wrap:wrap;}
+        .nav-btn {background:linear-gradient(135deg,#00ffb3,#00d4a0);color:#000;padding:18px 48px;border-radius:50px;font-size:1.4em;font-weight:bold;text-decoration:none;box-shadow:0 10px 30px rgba(0,255,179,0.5);transition:all .2s ease;min-width:200px;}
+        .nav-btn:hover {transform:scale(1.08) translateY(-4px);box-shadow:0 16px 40px rgba(0,255,179,0.7);}
+        @media (max-width:600px) {.nav-footer{flex-direction:column;align-items:center;}.nav-btn{width:80%;}}
+        .note {font-size:0.95em;opacity:0.8;margin:20px 0;line-height:1.5;}
+        .cashout-section {
+            margin:50px 0;
+            padding:35px 30px;
+            background:rgba(155,89,182,0.1);
+            border:2px solid rgba(155,89,182,0.4);
+            border-radius:20px;
+            max-width:720px;
+            margin-left:auto;
+            margin-right:auto;
+        }
+        .cashout-section h3 {
+            color:#d0a8ff;
+            margin:0 0 16px 0;
+            font-size:1.8em;
+        }
+        .cashout-section p {
+            opacity:0.9;
+            line-height:1.7;
+            margin-bottom:25px;
+        }
+    </style>
+</head>
+<body>
+
+<video autoplay muted loop playsinline id="bg-video">
+    <source src="BACKGROUND.mp4" type="video/mp4">
+</video>
+
+<div class="container">
+
+    <div class="success-bar">MAINNET LIVE — Zero Fees Forever — 100% of Lido Rewards</div>
+
+    <h1 style="font-size:3em;color:var(--green);margin:40px 0;">Rubioberry Zero-Fee Staking</h1>
+    <p style="font-size:1.4em;opacity:0.9;">Stake ETH → Get stETH → Earn full rewards → Withdraw anytime</p>
+
+    <button id="connectButton" class="btn-main">Connect Wallet</button>
+    <div id="status" class="loading">Click Connect Wallet to begin</div>
+
+    <div class="calc-box">
+        <h2 style="color:var(--green);margin:0 0 20px;">Live Rewards Calculator</h2>
+        <input type="number" id="ethAmount" class="calc-input" placeholder="How much ETH do you want to stake?" min="0.01" step="0.01">
+        <div class="result" id="result">Enter amount to see rewards</div>
+        <div class="comparison">
+            <div><strong>Rubioberry (0% fee):</strong><br><span id="rbEarn" style="font-size:1.5em;color:var(--green);">0</span> stETH/year</div>
+            <div><strong>Lido Direct (10% fee):</strong><br><span id="lidoEarn" style="color:#ff6b6b;">0</span> stETH/year</div>
+        </div>
+        <p style="margin-top:20px;font-size:0.9em;opacity:0.7;" id="apySource">Loading real-time APY...</p>
+    </div>
+
+    <div id="stakingSection" style="display:none;">
+        <input type="number" id="amount" class="calc-input" placeholder="Enter amount to stake (minimum 0.01 ETH)" min="0.01" step="0.01">
+        <br>
+        <button id="depositBtn" class="btn-main" style="width:420px;max-width:90%;margin:20px auto;display:block;">Deposit & Stake ETH</button>
+        
+        <div style="text-align:center;">
+            <button id="withdrawBtn" class="btn-main btn-withdraw" style="display:none;width:420px;max-width:90%;margin:20px auto;">
+                Withdraw All stETH + Rewards
+            </button>
+        </div>
+
+        <!-- Cash Out Section -->
+        <div class="cashout-section" id="cashoutSection" style="display:none;">
+            <h3>Withdraw & Cash Out Instantly</h3>
+            <p>Want ETH instead of stETH? Or cash straight to your bank?<br>
+            Use our one-click cash-out tool — powered by CoW Swap (MEV-protected) + Ramp (fiat off-ramp).</p>
+            <a href="withdraw-swap.html" class="btn-main btn-cashout" style="display:inline-block;width:460px;max-width:92%;text-decoration:none;">
+                Withdraw & Cash Out Now
+            </a>
+        </div>
+
+        <div class="note">
+            You will receive <strong>stETH</strong> on withdrawal — liquid staked ETH (1:1 with ETH).<br>
+            Trade stETH → ETH instantly on Uniswap, Curve, or use our cash-out tool above.
+        </div>
+        
+        <div id="balanceDisplay" style="margin:30px 0;font-size:1.8em;color:var(--green);font-weight:bold;">Loading balance...</div>
+    </div>
+
+    <div class="contract-box">
+        <strong>Mainnet Zero-Fee Vault (LIVE)</strong><br>
+        <a href="https://etherscan.io/address/0x7B4fD79c50F54F0367F9243400fB5C75597907e3" target="_blank" style="color:var(--green);font-size:1.1em;">
+            0x7B4fD79c50F54F0367F9243400fB5C75597907e3
+        </a>
+    </div>
+
+    <div class="nav-footer">
+        <a href="index.html" class="nav-btn">Home</a>
+        <a href="staking-sepolia.html" class="nav-btn">Practice on Sepolia</a>
+        <a href="contact.html" class="nav-btn">Contact</a>
+    </div>
+
+</div>
+
+<script>
+    const ADDRESS = "0x7B4fD79c50F54F0367F9243400fB5C75597907e3";
+    const ABI = [
+        "function deposit() payable",
+        "function withdraw(uint256 _shares)",
+        "function shares(address) view returns (uint256)",
+        "function previewWithdraw(address) view returns (uint256)"
+    ];
+
+    let provider, signer, contract, user;
+    let apy = 3.3;
+
+    const connectBtn = document.getElementById("connectButton");
+    const statusEl = document.getElementById("status");
+    const stakingSection = document.getElementById("stakingSection");
+    const depositBtn = document.getElementById("depositBtn");
+    const withdrawBtn = document.getElementById("withdrawBtn");
+    const balanceDisplay = document.getElementById("balanceDisplay");
+    const cashoutSection = document.getElementById("cashoutSection");
+
+    function setStatus(msg, type = "loading") {
+        statusEl.textContent = msg;
+        statusEl.className = type;
+    }
+
+    async function updateAPY() {
+        try {
+            const r = await fetch("https://stake.lido.fi/api/steth-apy");
+            const j = await r.json();
+            apy = Number(j.data?.apy || 3.3).toFixed(2);
+            document.getElementById("apySource").textContent = `Real-time Lido APY: ${apy}% (updated just now)`;
+        } catch (e) {
+            document.getElementById("apySource").textContent = "APY unavailable — using 3.3% fallback";
+        }
+    }
+
+    function calc() {
+        const eth = parseFloat(document.getElementById("ethAmount").value) || 0;
+        const res = document.getElementById("result");
+        if (eth < 0.01 || isNaN(eth)) {
+            res.textContent = "Minimum 0.01 ETH";
+            document.getElementById("rbEarn").textContent = "0";
+            document.getElementById("lidoEarn").textContent = "0";
+            return;
+        }
+        const yearly = (eth * apy / 100).toFixed(5);
+        res.innerHTML = `You earn <span style="color:var(--green);">${yearly}</span> stETH per year`;
+        document.getElementById("rbEarn").textContent = yearly;
+        document.getElementById("lidoEarn").textContent = (yearly * 0.9).toFixed(5);
+    }
+
+    document.getElementById("ethAmount").addEventListener("input", calc);
+    document.getElementById("amount").addEventListener("input", () => {
+        document.getElementById("ethAmount").value = document.getElementById("amount").value;
+        calc();
+    });
+
+    async function connectWallet() {
+        if (!window.ethereum) return setStatus("MetaMask not detected", "error");
+        provider = new ethers.BrowserProvider(window.ethereum);
+        try {
+            await provider.send("eth_requestAccounts", []);
+            const network = await provider.getNetwork();
+            if (network.chainId !== 1n) {
+                await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x1" }] });
+            }
+            signer = await provider.getSigner();
+            user = await signer.getAddress();
+            contract = new ethers.Contract(ADDRESS, ABI, signer);
+
+            const short = `${user.slice(0,6)}...${user.slice(-4)}`;
+            setStatus(`Connected: ${short}`, "loading");
+            connectBtn.textContent = "Wallet Connected";
+            connectBtn.disabled = true;
+            connectBtn.classList.add("connected");
+            stakingSection.style.display = "block";
+            cashoutSection.style.display = "block";
+
+            updateBalance();
+        } catch (err) {
+            setStatus("Connection failed or rejected", "error");
+            console.error(err);
+        }
+    }
+
+    async function updateBalance() {
+        if (!contract || !user) return;
+        try {
+            const amt = await contract.previewWithdraw(user);
+            const steth = parseFloat(ethers.formatEther(amt));
+            if (steth < 0.0001) {
+                balanceDisplay.textContent = "No stake yet";
+                balanceDisplay.style.color = "white";
+                withdrawBtn.style.display = "none";
+            } else {
+                const clean = steth.toFixed(6).replace(/\.?0+$/, "");
+                balanceDisplay.textContent = `Staked: ${clean} stETH (with rewards)`;
+                balanceDisplay.style.color = "var(--green)";
+                withdrawBtn.style.display = "block";
+            }
+        } catch (err) {
+            console.error("Balance error:", err);
+            balanceDisplay.textContent = "Failed to load balance";
+            balanceDisplay.style.color = "#ff6b6b";
+        }
+    }
+
+    depositBtn.onclick = async () => {
+        const amount = parseFloat(document.getElementById("amount").value || "0");
+        if (amount < 0.01) return setStatus("Minimum 0.01 ETH", "error");
+        depositBtn.disabled = true; depositBtn.textContent = "Opening MetaMask...";
+        setStatus("Confirm deposit in MetaMask...", "loading");
+        try {
+            const tx = await contract.deposit({ value: ethers.parseEther(amount.toString()) });
+            await tx.wait();
+            alert(`Successfully staked ${amount} ETH!\nhttps://etherscan.io/tx/${tx.hash}`);
+            document.getElementById("amount").value = "";
+            updateBalance();
+            setStatus(`Staked ${amount} ETH!`, "loading");
+        } catch (e) {
+            setStatus(e.code === 4001 ? "Rejected" : "Deposit failed", "error");
+        } finally {
+            depositBtn.disabled = false; depositBtn.textContent = "Deposit & Stake ETH";
+        }
+    };
+
+    withdrawBtn.onclick = async () => {
+        withdrawBtn.disabled = true; setStatus("Fetching shares...", "loading");
+        try {
+            const shares = await contract.shares(user);
+            if (shares === 0n) return setStatus("Nothing to withdraw", "error");
+            setStatus("Confirm withdrawal...", "loading");
+            const tx = await contract.withdraw(shares);
+            await tx.wait();
+            alert(`Withdrawn all stETH + rewards!\nhttps://etherscan.io/tx/${tx.hash}`);
+            updateBalance(); setStatus("Withdrawal successful!", "loading");
+        } catch (e) {
+            setStatus(e.code === 4001 ? "Cancelled" : "Withdraw failed", "error");
+        } finally { withdrawBtn.disabled = false; }
+    };
+
+    connectBtn.onclick = connectWallet;
+    setInterval(() => { if (contract && user) updateBalance(); }, 12000);
+
+    if (window.ethereum) {
+        window.ethereum.request({ method: "eth_accounts" }).then(accounts => {
+            if (accounts.length > 0) connectWallet();
+        });
+    }
+
+    updateAPY();
+    setInterval(updateAPY, 300000);
+</script>
+</body>
+</html>

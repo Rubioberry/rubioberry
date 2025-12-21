@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubioberry → Practice Zero-Fee Staking on Sepolia Testnet</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
+    <style>
+        :root { --green: #00ffb3; --pink: #ff006e; --yellow: #ffff00; }
+        body {font-family:'Inter',sans-serif;background:#0a0a1f;color:white;margin:0;overflow-x:hidden;}
+        #bg-video {position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:-1;opacity:0.65;}
+        .container {max-width:900px;margin:0 auto;padding:20px;text-align:center;}
+        .success-bar {background:var(--green);color:#000;padding:16px;border-radius:12px;font-weight:bold;margin:15px 0;font-size:1.1em;}
+        .warning {background:#ff6b6b;color:white;padding:15px;border-radius:12px;margin:20px 0;font-weight:bold;}
+        .warning.green {background:#4CAF50;color:#000;}
+        .warning.orange {background:#ff9800;color:#000;}
+        .btn-main {background:linear-gradient(135deg,#00ffb3,#00d4a0);color:#000;font-weight:bold;padding:18px 40px;font-size:1.5em;border-radius:50px;border:none;cursor:pointer;box-shadow:0 10px 30px rgba(0,255,179,0.4);transition:all .2s;margin:15px;}
+        .btn-main:hover:not(:disabled) {transform:scale(1.06);}
+        .btn-main:disabled {background:#555;cursor:not-allowed;opacity:0.6;}
+        .btn-main.connected {background:#4CAF50;}
+        .calc-input {width:100%;padding:20px;font-size:1.6em;text-align:center;border:2px solid var(--green);border-radius:16px;background:rgba(10,10,31,0.95);color:white;margin:15px 0;}
+        .steps {list-style:decimal inside;padding-left:0;margin:30px 0;}
+        .steps li {margin:15px 0;padding:12px;background:rgba(255,255,255,0.05);border-radius:10px;text-align:left;}
+        .contract-box {background:rgba(255,255,255,0.07);padding:20px;border-radius:16px;border:1px solid rgba(0,255,179,0.3);margin:40px 0;font-family:monospace;}
+        .nav-footer {margin:100px 0 60px 0;display:flex;gap:25px;justify-content:center;flex-wrap:wrap;}
+        .nav-btn {background:linear-gradient(135deg,#00ffb3,#00d4a0);color:#000;padding:18px 48px;border-radius:50px;font-size:1.4em;font-weight:bold;text-decoration:none;box-shadow:0 10px 30px rgba(0,255,179,0.5);transition:all .2s ease;}
+        .nav-btn:hover {transform:scale(1.08) translateY(-4px);box-shadow:0 16px 40px rgba(0,255,179,0.7);}
+        .status {margin:20px 0;padding:15px;background:rgba(0,255,179,0.15);border-radius:12px;font-weight:bold;}
+        .highlight-link {color:white !important;text-decoration:underline;font-weight:600;transition:color .2s;}
+        .highlight-link:hover {color:var(--yellow) !important;}
+        @media (max-width:600px) {.nav-footer{flex-direction:column;align-items:center;}.nav-btn{width:80%;}}
+    </style>
+</head>
+<body>
+
+<video autoplay muted loop playsinline id="bg-video">
+    <source src="BACKGROUND.mp4" type="video/mp4">
+</video>
+
+<div class="container">
+    <div class="success-bar">SEPOLIA TESTNET — Practice Zero-Fee Staking (No Real Rewards)</div>
+
+    <div class="warning">
+        THIS IS A TESTNET — No real ETH • No APY • For practice only<br>
+        <a href="https://faucet.ghostchain.io" target="_blank" class="highlight-link">Get free Sepolia ETH here</a>
+    </div>
+
+    <div class="warning orange">Minimum practice stake: <strong>0.1 Sepolia ETH</strong></div>
+    <div class="warning green">Test Contract: <a href="https://sepolia.etherscan.io/address/0xf525176cb8f89bf7232c90ecdd20f19434723de1" target="_blank" style="color:#000;font-weight:bold;">0xf525...23de1</a></div>
+
+    <h1 style="font-size:3em;color:var(--green);margin:40px 0;">Practice Staking on Sepolia</h1>
+    <p style="font-size:1.5em;opacity:0.9;margin-bottom:40px;">Test the exact same zero-fee experience you’ll get on mainnet — completely free</p>
+
+    <h2>How to Practice (5 Easy Steps)</h2>
+    <ol class="steps">
+        <li>Install MetaMask from <a href="https://metamask.io" target="_blank" class="highlight-link">metamask.io</a></li>
+        <li>Click “Connect Wallet” — it will switch you to Sepolia testnet</li>
+        <li>Get free test ETH from <a href="https://faucet.ghostchain.io" target="_blank" class="highlight-link">faucet.ghostchain.io</a></li>
+        <li>Enter 0.1 or more test ETH → click “Deposit & Stake ETH”</li>
+        <li>Try withdrawing anytime — works exactly like mainnet!</li>
+    </ol>
+
+    <button id="connectButton" class="btn-main">Connect Wallet</button>
+    <div id="status" class="status">Click above to begin</div>
+
+    <div id="stakingSection" style="display:none;">
+        <input type="number" id="amount" class="calc-input" placeholder="Minimum 0.1 Sepolia ETH" min="0.1" step="0.01" value="0.1">
+        <br>
+        <button id="depositBtn" class="btn-main" style="width:420px;max-width:90%;margin:20px auto;display:block;">Deposit & Stake ETH (Practice)</button>
+        <button id="withdrawBtn" class="btn-main" style="background:var(--pink);color:white;display:none;width:420px;max-width:90%;margin:20px auto;">Withdraw All (Practice)</button>
+        <div id="balanceDisplay" style="margin:30px 0;font-size:1.8em;color:var(--green);font-weight:bold;">Loading...</div>
+    </div>
+
+    <div class="contract-box">
+        <strong>Sepolia Testnet Practice Vault</strong><br>
+        <a href="https://sepolia.etherscan.io/address/0xf525176cb8f89bf7232c90ecdd20f19434723de1" target="_blank" style="color:var(--green);">
+            0xf525176cb8f89bf7232c90ecdd20f19434723de1
+        </a>
+    </div>
+
+    <div style="margin:60px 0;font-size:1.4em;line-height:1.8;">
+        When you’re ready for <strong>real rewards</strong>, go to the mainnet version:<br>
+        <a href="/RBstakingETHonLido.html" style="color:var(--green);font-size:1.3em;font-weight:bold;">→ Stake Real ETH on Mainnet (Live Now)</a>
+    </div>
+
+    <div class="nav-footer">
+        <a href="index.html" class="nav-btn">Home</a>
+        <a href="RBstakingETHonLido.html" class="nav-btn">Go to Mainnet Staking</a>
+        <a href="contact.html" class="nav-btn">Contact</a>
+    </div>
+</div>
+
+<script>
+    const CONTRACT_ADDRESS = "0xf525176cb8f89bf7232c90ecdd20f19434723de1";
+    
+    // Correct ABI matching your deployed contract
+    const ABI = [
+        "function Stake() payable",
+        "function withdraw(uint256 amount)",
+        "function getStaked(address account) view returns (uint256)"
+    ];
+
+    let provider, signer, contract, userAddress;
+
+    const connectBtn = document.getElementById("connectButton");
+    const statusEl = document.getElementById("status");
+    const stakingSection = document.getElementById("stakingSection");
+    const depositBtn = document.getElementById("depositBtn");
+    const withdrawBtn = document.getElementById("withdrawBtn");
+    const balanceDisplay = document.getElementById("balanceDisplay");
+
+    function setStatus(msg, error = false) {
+        statusEl.textContent = msg;
+        statusEl.style.background = error ? "rgba(255,0,0,0.2)" : "rgba(0,255,179,0.15)";
+    }
+
+    async function connectWallet() {
+        if (!window.ethereum) return setStatus("MetaMask not found", true);
+
+        provider = new ethers.BrowserProvider(window.ethereum);
+
+        try {
+            await provider.send("eth_requestAccounts", []);
+            const network = await provider.getNetwork();
+            if (network.chainId !== 11155111n) {
+                try {
+                    await window.ethereum.request({
+                        method: "wallet_switchEthereumChain",
+                        params: [{ chainId: "0xaa36a7" }]
+                    });
+                } catch (e) {
+                    setStatus("Please switch to Sepolia testnet", true);
+                    return;
+                }
+            }
+
+            signer = await provider.getSigner();
+            userAddress = await signer.getAddress();
+            contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+            const short = `${userAddress.slice(0,6)}...${userAddress.slice(-4)}`;
+            setStatus(`Connected: ${short}`);
+            connectBtn.textContent = "Wallet Connected";
+            connectBtn.disabled = true;
+            connectBtn.classList.add("connected");
+            stakingSection.style.display = "block";
+
+            updateBalance();
+
+        } catch (err) {
+            setStatus("Connection failed or rejected", true);
+            console.error(err);
+        }
+    }
+
+    async function updateBalance() {
+        if (!contract || !userAddress) return;
+
+        try {
+            const wei = await contract.getStaked(userAddress);
+            const eth = parseFloat(ethers.formatEther(wei));
+
+            if (eth === 0) {
+                balanceDisplay.textContent = "No practice stake yet";
+                balanceDisplay.style.color = "white";
+                withdrawBtn.style.display = "none";
+            } else {
+                const clean = eth.toFixed(6).replace(/\.?0+$/, "");
+                balanceDisplay.textContent = `Practice stake active — ${clean} test ETH withdrawable`;
+                balanceDisplay.style.color = "var(--green)";
+                withdrawBtn.style.display = "block";
+            }
+        } catch (err) {
+            console.error("Balance fetch error:", err);
+            balanceDisplay.textContent = "Failed to load balance";
+            balanceDisplay.style.color = "#ff6b6b";
+        }
+    }
+
+    depositBtn.onclick = async () => {
+        const amountInput = document.getElementById("amount").value;
+        const amount = parseFloat(amountInput || "0");
+        if (isNaN(amount) || amount < 0.1) {
+            setStatus("Minimum 0.1 Sepolia ETH", true);
+            return;
+        }
+
+        setStatus("Confirm transaction in MetaMask...");
+        try {
+            const tx = await contract.Stake({ value: ethers.parseEther(amount.toString()) });
+            setStatus("Waiting for confirmation...");
+            await tx.wait();
+            setStatus(`Successfully staked ${amount} test ETH!`);
+            document.getElementById("amount").value = "0.1";
+            updateBalance();
+        } catch (e) {
+            setStatus("Deposit failed or rejected", true);
+            console.error(e);
+        }
+    };
+
+    withdrawBtn.onclick = async () => {
+        setStatus("Confirm withdrawal in MetaMask...");
+        try {
+            const wei = await contract.getStaked(userAddress);
+            if (wei === 0n) {
+                setStatus("Nothing to withdraw");
+                return;
+            }
+
+            const tx = await contract.withdraw(wei);
+            setStatus("Processing withdrawal...");
+            await tx.wait();
+            setStatus("Withdrawn successfully!");
+            updateBalance();
+        } catch (e) {
+            setStatus("Withdraw failed", true);
+            console.error(e);
+        }
+    };
+
+    connectBtn.onclick = connectWallet;
+
+    // Auto-refresh balance every 8 seconds
+    setInterval(() => {
+        if (contract && userAddress) updateBalance();
+    }, 8000);
+
+    // Auto-connect if wallet was already approved
+    if (window.ethereum) {
+        window.ethereum.request({ method: "eth_accounts" }).then(accounts => {
+            if (accounts.length > 0) connectWallet();
+        });
+    }
+</script>
+</body>
+</html>

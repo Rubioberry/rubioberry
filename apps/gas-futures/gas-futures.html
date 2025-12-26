@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rubioberry Gas Futures — Bet on Ethereum Gas Prices (Lone bets refunded)</title>
-    <link rel="stylesheet" href="/packages/ui/index.css"> <!-- Fixed absolute -->
+    <link rel="stylesheet" href="/packages/ui/index.css">
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
 <video autoplay muted loop playsinline id="bg-video">
-    <source src="/BACKGROUND.mp4" type="video/mp4"> <!-- Fixed absolute -->
+    <source src="/BACKGROUND.mp4" type="video/mp4">
 </video>
 
 <div class="container">
@@ -40,10 +40,10 @@
     <!-- Create Market — always visible -->
     <div class="calc-box" style="margin:40px 0;">
         <h2>Create New Market</h2>
-        <input type="number" id="targetGwei" class="calc-input" placeholder="Target gas price (gwei)" min="1">
+        <input type="number" id="targetGwei" class="calc-input" placeholder="Target gas price (gwei, e.g. 0.000001)" min="0.000001" step="any">
         <input type="number" id="hoursExpiry" class="calc-input" placeholder="Hours until expiry" min="1" value="24">
         <button id="createMarketBtn" class="btn-main">Create Market</button>
-        <div class="note">Connect wallet to create — examples: target 50 gwei for hourly UP/DOWN, 100 gwei for spike</div>
+        <div class="note">Decimals allowed (e.g. 0.000001 gwei for ultra-low bets). Use small values for long-term low-gas predictions.</div>
     </div>
 
     <!-- Live gas tracker -->
@@ -121,19 +121,22 @@
 
     connectButton.addEventListener("click", connectWallet);
 
-    // Create market
+    // Create market — allow decimals (convert to wei)
     createMarketBtn.addEventListener("click", async () => {
         if (!contract) return alert("Connect wallet first");
-        const target = document.getElementById("targetGwei").value;
+        const targetStr = document.getElementById("targetGwei").value.trim();
         const hours = document.getElementById("hoursExpiry").value;
 
-        if (!target || !hours || target <= 0 || hours <= 0) {
-            alert("Enter valid target gwei and hours");
+        if (!targetStr || Number(targetStr) <= 0 || !hours || hours <= 0) {
+            alert("Enter valid target gwei (e.g. 0.000001) and hours");
             return;
         }
 
         try {
-            const tx = await contract.createMarket(target, hours);
+            // Convert decimal gwei to wei (1 gwei = 1e9 wei)
+            const targetWei = ethers.parseUnits(targetStr, 9);
+
+            const tx = await contract.createMarket(targetWei, hours);
             walletStatus.textContent = "Creating market... waiting";
             walletStatus.className = "loading";
             await tx.wait();
@@ -189,6 +192,9 @@
                 const userShort = userAddress ? Number(await contract.shortBets(i, userAddress)) : 0;
                 const userBetOn = (userLong > 0 || userShort > 0);
 
+                // Show target with 6 decimals
+                const targetGwei = Number(market.targetGwei) / 1e9;
+
                 const expiryDate = new Date(Number(market.expiry) * 1000).toLocaleString();
 
                 const card = document.createElement("div");
@@ -196,7 +202,7 @@
                 if (userBetOn) card.style.border = "3px solid #00ffb3";
 
                 card.innerHTML = `
-                    <h3>Market #${i} — Target: ${market.targetGwei} gwei</h3>
+                    <h3>Market #${i} — Target: ${targetGwei.toFixed(6)} gwei</h3>
                     <div class="big">Pot: ${ethers.formatEther(pot)} ETH</div>
                     <div class="big">Odds: LONG ${longOdds}% | SHORT ${shortOdds}%</div>
                     <div>Expires: ${expiryDate}</div>

@@ -133,8 +133,7 @@
         }
 
         try {
-            // Convert decimal gwei to wei (1 gwei = 1e9 wei)
-            const targetWei = ethers.parseUnits(targetStr, 9);
+            const targetWei = ethers.parseUnits(targetStr, 9); // gwei to wei
 
             const tx = await contract.createMarket(targetWei, hours);
             walletStatus.textContent = "Creating market... waiting";

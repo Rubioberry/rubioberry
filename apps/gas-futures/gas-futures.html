@@ -35,7 +35,7 @@
     <div class="button-group">
         <button id="connectButton" class="btn-main">Connect Wallet</button>
     </div>
-    <div id="walletStatus" class="success-bar">Click Connect Wallet to begin</div>
+    <div id="walletStatus" class="success-bar">Wallet not connected (markets visible to all)</div>
 
     <!-- Create Market — always visible -->
     <div class="calc-box" style="margin:40px 0;">
@@ -49,7 +49,7 @@
     <!-- Live gas tracker -->
     <div class="block-info">
         <h3>Current Gas Price (Base Fee)</h3>
-        <div id="currentGas" class="big">Connect wallet to load</div>
+        <div id="currentGas" class="big">Loading...</div>
     </div>
 
     <!-- Active markets grid -->
@@ -78,8 +78,12 @@
         "function getTWAPGwei() external view returns (uint256)"
     ];
 
-    let provider, signer, contract, userAddress;
-    let loadedMarketIds = new Set(); // Tracks which market cards are already displayed
+    // Public provider for read-only (visible to everyone)
+    const publicProvider = new ethers.JsonRpcProvider("https://eth-mainnet.g.alchemy.com/v2/demo"); // Free public Alchemy demo endpoint (rate-limited but fine for reads)
+    let publicContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, publicProvider);
+
+    let signer, signedContract, userAddress;
+    let loadedMarketIds = new Set();
 
     const connectButton = document.getElementById("connectButton");
     const walletStatus = document.getElementById("walletStatus");
@@ -88,31 +92,27 @@
 
     async function connectWallet() {
         if (!window.ethereum) {
-            walletStatus.textContent = "MetaMask not detected! Serve via localhost.";
+            walletStatus.textContent = "MetaMask not detected!";
             walletStatus.className = "warning";
             return;
         }
 
         try {
-            provider = new ethers.BrowserProvider(window.ethereum);
+            const provider = new ethers.BrowserProvider(window.ethereum);
             await provider.send("eth_requestAccounts", []);
 
             signer = await provider.getSigner();
             userAddress = await signer.getAddress();
-            contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+            signedContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
             const shortAddress = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
-            walletStatus.textContent = `Connected: ${shortAddress}`;
+            walletStatus.textContent = `Connected: ${shortAddress} (ready to bet/create)`;
             walletStatus.className = "success-bar";
             connectButton.textContent = "Wallet Connected";
             connectButton.disabled = true;
 
-            loadMarkets();
-            updateGasPrice();
-            setInterval(() => {
-                loadMarkets();      // Check for new markets every 60s
-                updateGasPrice();
-            }, 60000);
+            // Refresh markets with signed contract for user-specific bets display
+            loadMarkets(true);
         } catch (error) {
             console.error(error);
             walletStatus.textContent = "Connection failed or rejected";
@@ -122,9 +122,10 @@
 
     connectButton.addEventListener("click", connectWallet);
 
-    // Create market
+    // Create market (requires connection)
     createMarketBtn.addEventListener("click", async () => {
-        if (!contract) return alert("Connect wallet first");
+        if (!signedContract) return alert("Connect wallet to create market");
+        // ... (same as before)
         const targetStr = document.getElementById("targetGwei").value.trim();
         const hours = document.getElementById("hoursExpiry").value;
 
@@ -134,15 +135,14 @@
         }
 
         try {
-            const targetWei = ethers.parseUnits(targetStr, 9); // gwei to wei
-
-            const tx = await contract.createMarket(targetWei, hours);
+            const targetWei = ethers.parseUnits(targetStr, 9);
+            const tx = await signedContract.createMarket(targetWei, hours);
             walletStatus.textContent = "Creating market... waiting";
             walletStatus.className = "loading";
             await tx.wait();
             walletStatus.textContent = "Market created!";
             walletStatus.className = "success-bar";
-            loadMarkets(); // Immediate refresh to show the new one
+            loadMarkets(true); // Refresh with user bets
         } catch (e) {
             console.error(e);
             alert("Create failed: " + (e.message || "Unknown error"));
@@ -150,9 +150,8 @@
     });
 
     async function updateGasPrice() {
-        if (!provider) return;
         try {
-            const block = await provider.getBlock("latest");
+            const block = await publicProvider.getBlock("latest");
             const baseFeeWei = block.baseFeePerGas || 0n;
             const baseFeeGwei = Number(baseFeeWei) / 1e9;
             document.getElementById("currentGas").textContent = baseFeeGwei.toFixed(6) + " gwei";
@@ -161,48 +160,42 @@
         }
     }
 
-    async function loadMarkets() {
-        if (!contract) {
-            marketsGrid.innerHTML = "<div class='note'>Connect wallet to load markets</div>";
-            return;
-        }
+    async function loadMarkets(useSigned = false) {
+        const contractToUse = useSigned && signedContract ? signedContract : publicContract;
 
         try {
-            const marketCount = await contract.markets.length;
+            const marketCount = await contractToUse.markets.length;
             const now = Math.floor(Date.now() / 1000);
 
             let hasActive = false;
 
             for (let i = 0; i < marketCount; i++) {
-                const market = await contract.markets(i);
+                const market = await contractToUse.markets(i);
 
-                // Skip expired or resolved markets
-                if (Number(market.expiry) <= now || market.resolved) {
-                    // If it was previously displayed, we leave it (but since we don't show resolved, it's fine)
-                    continue;
-                }
+                if (Number(market.expiry) <= now || market.resolved) continue;
 
                 hasActive = true;
 
-                // If this market card is already displayed, skip rendering it again
-                if (loadedMarketIds.has(i)) {
-                    continue;
-                }
+                if (loadedMarketIds.has(i)) continue;
 
                 const pot = Number(market.totalLong) + Number(market.totalShort);
-                const total = pot;
-                const longOdds = total > 0 ? Math.round((Number(market.totalLong) * 100) / total) : 50;
+                const longOdds = pot > 0 ? Math.round((Number(market.totalLong) * 100) / pot) : 50;
                 const shortOdds = 100 - longOdds;
-                const userLong = userAddress ? Number(await contract.longBets(i, userAddress)) : 0;
-                const userShort = userAddress ? Number(await contract.shortBets(i, userAddress)) : 0;
-                const userBetOn = (userLong > 0 || userShort > 0);
+
+                // User bets only if signed and address available
+                let userLong = 0, userShort = 0, userBetOn = false;
+                if (useSigned && userAddress) {
+                    userLong = Number(await contractToUse.longBets(i, userAddress));
+                    userShort = Number(await contractToUse.shortBets(i, userAddress));
+                    userBetOn = (userLong > 0 || userShort > 0);
+                }
 
                 const targetGwei = Number(market.targetGwei) / 1e9;
                 const expiryDate = new Date(Number(market.expiry) * 1000).toLocaleString();
 
                 const card = document.createElement("div");
                 card.className = "berry-card";
-                card.id = `market-card-${i}`; // For stable reference
+                card.id = `market-card-${i}`;
                 if (userBetOn) card.style.border = "3px solid #00ffb3";
 
                 card.innerHTML = `
@@ -210,7 +203,7 @@
                     <div class="big">Pot: ${ethers.formatEther(pot)} ETH</div>
                     <div class="big">Odds: LONG ${longOdds}% | SHORT ${shortOdds}%</div>
                     <div>Expires: ${expiryDate}</div>
-                    ${userBetOn ? `<div class="success-bar">BET ON THIS MARKET!</div>` : ""}
+                    ${userBetOn ? `<div class="success-bar">YOU BET ON THIS MARKET!</div>` : ""}
                     <div class="button-group">
                         <button class="btn-main" onclick="bet(${i}, true)">Bet LONG</button>
                         <button class="btn-sepolia" onclick="bet(${i}, false)">Bet SHORT</button>
@@ -223,62 +216,52 @@
             }
 
             if (!hasActive) {
-                marketsGrid.innerHTML = "<div class='note'>No active (non-expired) markets right now — create one!</div>";
-                loadedMarketIds.clear(); // Reset if nothing active
+                marketsGrid.innerHTML = "<div class='note'>No active markets right now — create one!</div>";
+                loadedMarketIds.clear();
             }
-
         } catch (e) {
             console.error(e);
-            marketsGrid.innerHTML = `<div class="warning">Error loading markets — refresh or check console.</div>`;
+            marketsGrid.innerHTML = `<div class="warning">Error loading markets: ${e.message}</div>`;
         }
     }
 
     async function bet(marketId, isLong) {
-        if (!userAddress) return alert("Connect wallet first");
-        let amountStr = prompt(`How much ETH to bet on ${isLong ? "LONG" : "SHORT"}? (e.g. 0.01 or 0.0001)`, "0.01");
+        if (!signedContract) return alert("Connect wallet to bet");
+        // ... (same prompt/try-catch as before, using signedContract)
+        let amountStr = prompt(`How much ETH to bet on ${isLong ? "LONG" : "SHORT"}? (e.g. 0.01)`, "0.01");
         if (!amountStr || parseFloat(amountStr) <= 0) return;
-
-        amountStr = amountStr.trim();
 
         let value;
         try {
-            value = ethers.parseUnits(amountStr, 18);
+            value = ethers.parseUnits(amountStr.trim(), 18);
         } catch (e) {
-            alert("Invalid amount — use numbers like 0.01, 0.001, 0.0001");
+            alert("Invalid amount");
             return;
         }
 
         try {
-            const tx = isLong 
-                ? await contract.betLong(marketId, { value })
-                : await contract.betShort(marketId, { value });
-            walletStatus.textContent = "Tx sent... waiting confirmation";
+            const tx = isLong ? await signedContract.betLong(marketId, { value }) : await signedContract.betShort(marketId, { value });
+            walletStatus.textContent = "Tx sent... waiting";
             walletStatus.className = "loading";
             await tx.wait();
-            walletStatus.textContent = "Bet placed successfully!";
+            walletStatus.textContent = "Bet placed!";
             walletStatus.className = "success-bar";
-            loadMarkets(); // Refresh to update pot/odds/your bets (adds no new cards, just updates if needed)
+            loadMarkets(true);
         } catch (e) {
             console.error(e);
-            alert("Bet failed: " + (e.message || "Unknown error"));
+            alert("Bet failed: " + (e.message || "Unknown"));
         }
     }
 
-    async function claim(marketId) {
-        try {
-            const tx = await contract.claim(marketId);
-            walletStatus.textContent = "Claiming winnings...";
-            walletStatus.className = "loading";
-            await tx.wait();
-            walletStatus.textContent = "Winnings claimed!";
-            walletStatus.className = "success-bar";
-            loadMarkets();
-        } catch (e) {
-            alert("Claim failed: " + (e.message || "Unknown error"));
-        }
-    }
+    // Load markets + gas on page load (public)
+    loadMarkets();
+    updateGasPrice();
+    setInterval(() => {
+        loadMarkets(!!signedContract); // Use signed if connected
+        updateGasPrice();
+    }, 60000);
 
-    // Auto-connect if already authorized
+    // Auto-connect if authorized
     if (window.ethereum) {
         window.ethereum.request({ method: "eth_accounts" }).then(accounts => {
             if (accounts.length > 0) connectWallet();

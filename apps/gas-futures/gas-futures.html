@@ -222,9 +222,9 @@
             }
 
             if (!hasActive) {
-                marketsGrid.innerHTML = "<div class='note'>No active markets right now — create one!</div>";
+                marketsGrid.innerHTML = "<div class='note'>Markets cycle every minute — create one!</div>";
             } else if (marketsGrid.innerHTML === '<div class="note">Loading markets...</div>') {
-                marketsGrid.innerHTML = "<div class='note'>No active markets right now — create one!</div>";
+                marketsGrid.innerHTML = "<div class='note'>Markets cycle every minute — create one!</div>";
             }
         } catch (e) {
             console.error(e);

@@ -213,7 +213,7 @@
                     marketId++;
                 } catch (e) {
                     // Assuming the error is due to index out of bounds; break the loop
-                    if (e.code === 'CALL_EXCEPTION' || e.message.includes('revert')) {
+                    if (e.code === 'CALL_EXCEPTION' || e.code === 'BAD_DATA' || e.message.includes('revert')) {
                         break;
                     } else {
                         throw e;
